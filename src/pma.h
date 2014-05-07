@@ -2,32 +2,18 @@
 #define __PMA_H_
 
 // Questions for Michael:
-// How to compute the size of the array and the size of the segments?
-// How to compact things to the left
-// How to insert? Do we preprocess every element to find the position of the predecessor, or do we
+// - How to compute the size of the array and the size of the segments?
+// - How to compact things to the left. When packing, are we allowed to use all used levels, or only
+// the one we are promoting to?
+// - Do we also promote elements that have been insterted in the meantime?
+// - How to insert? Do we preprocess every element to find the position of the predecessor, or do we
 // do it on the fly?
+// - Should we have an implicit tree even for the amortized version?
+// - Do we have to ``clean'' as we are packing?
+// - Is it true that there can be $O(n)$ cleaning processes active at the same time? Do we trigger a
+// step only on those windows that contain a new element being inserted? When do cleaning processes
+// stop? Is it something likne: when a cleaning process finishes, it kills all processes underneath
+// it? Can we do this in $o(n)$?
 
-#include <stdint.h>
-#include <stdbool.h>
-
-typedef uint64_t key_t;
-
-struct pma;
-typedef struct pma pma_t, *PMA;
-
-static const double t_0 = 0.75;
-static const double t_h = 1;
-static const double p_0 = 0.5;
-static const double p_h = 0.25;
-
-PMA pma_create (key_t *array, uint64_t n);
-void pma_destroy (PMA *pma);
-bool pma_find (PMA pma, key_t key);
-bool pma_predecessor (PMA pma, key_t key);
-void pma_insert_after (PMA pma, uint64_t i, key_t key);
-void pma_insert (PMA pma, key_t key);
-bool pma_empty (PMA p, uint64_t i);
-uint64_t pma_size (PMA p);
-uint64_t pma_count (PMA p);
 
 #endif  /* __PMA_H_ */
