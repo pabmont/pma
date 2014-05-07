@@ -16,88 +16,7 @@
 
 #include "pma.h"
 
-#include <assert.h>
-#include <stdint.h>
-#include <stdbool.h>
-
-/* Returns the 1-based index of the last (i.e., most significant) bit set in x.
- * Returns 0 if no bit is set.
- */
-inline uint64_t last_bit_set (uint64_t x) {
-  assert (x > 0);
-  return (sizeof (uint64_t) * 8 - __builtin_clzll (x));
-}
-
-inline uint64_t floor_lg (uint64_t x) {
-  return (last_bit_set (x) - 1);
-}
-
-inline uint64_t ceil_lg (uint64_t x) {
-  return (last_bit_set (x - 1));
-}
-
-/* Returns the largest power of 2 not greater than x
- * (i.e., $2^{\lfloor \lg x \rfloor}$).
- */
-inline uint64_t hyperfloor (uint64_t x) {
-  return (1 << floor_lg (x));
-}
-
-/* Returns the smallest power of 2 not less than x
- * (i.e., $2^{\lceil \lg x \rceil}$).
- */
-inline uint64_t hyperceil (uint64_t x) {
-  return (1 << ceil_lg (x));
-}
-
-inline bool is_power_of_2 (uint64_t x) {
-  return (x && !(x & (x - 1)));
-}
-
-/* Returns the smallest power of 2 strictly greater than x. */
-inline uint64_t next_power_of_2 (uint64_t x) {
-  return (1 << last_bit_set (x));
-}
-
-inline int min(int a, int b) {
-  return ((a < b) ? a : b);
-}
-
-inline int max(int a, int b) {
-  return ((a > b) ? a : b);
-}
-
-typedef uint64_t key_t;
-typedef uint64_t val_t;
-
-typedef struct {
-  key_t key;
-  val_t val;
-} keyval_t;
-
-/* Returns true if keyval is empty and false otherwise. */
-bool keyval_empty (const keyval_t *keyval) {
-  return (keyval->key == 0ULL);
-}
-
-/* Sets keyval to be empty. */
-void keyval_clear (keyval_t *keyval) {
-  keyval->key = 0ULL;
-  keyval->val = 0ULL;
-}
-
-/* Reserve 8 bits to allow for fixed point arithmetic. */
-#define MAX_SIZE ((1ULL << 56) - 1ULL)
-
-/* Depth-based thresholds. */
-/* Upper density thresholds. */
-static const double t_0 = 0.75;  /* root. */
-static const double t_h = 1.00;  /* leaves. */
-/* Lower density thresholds. */
-static const double p_0 = 0.50;  /* root. */
-static const double p_h = 0.25;  /* leaves. */
-
-typedef struct {
+struct _pma {
   uint64_t n;  /* Number of elements. */
   uint64_t m;  /* Size of the array. */
   uint8_t s;  /* Size of the segments. */
@@ -106,7 +25,7 @@ typedef struct {
   double delta_t;  /* Delta for upper density threshold. */
   double delta_p;  /* Delta for lower density threshold. */
   keyval_t *array;
-} pma_t, *PMA;
+};
 
 PMA pma_create (keyval_t *array, uint64_t n) {
   PMA pma = (PMA)malloc (sizeof (pma_t));
@@ -188,11 +107,6 @@ bool pma_find (PMA pma, key_t key, uint64_t *index) {
   return (false);
 }
 
-void pma_range (PMA pma, uint64_t from, uint64_t to,
-                uint64_t *k, keyval_t **output) {
-  // TODO: NYI.
-}
-
 /* TODO: Should to and from be inclusive? */
 /* Returns how many elements were packed. */
 uint64_t pma_pack (PMA pma, uint64_t from, uint64_t to) {
@@ -235,8 +149,21 @@ void pma_rebalance (PMA pma, uint64_t from, uint64_t to) {
   pma_spread (pma, from, to);
 }
 
-
 void pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val) {
+  assert (!keyval_empty (&(pma->array [i])));
+  /* Find the closest empty space within the segment. */
+  uint64_t left = i - 1;
+  uint64_t right = i + 1;
+  while (!keyval_empty (&(pma->array [left])) &&
+         !keyval_empty (&(pma->array [right]))) {
+    left--;
+    right++;
+  }
+  /* Find the smallest window within threshold. */
+  while (density < x) {
+  }
+  /* Rebalance */
+  pma_rebalance (pma, window_start, window_end);
   pma->n++;
 }
 
