@@ -21,8 +21,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Returns the 1-based index of the last (i.e., most significant) bit set in x.
- * Returns 0 if no bit is set.
+/*
+ * Returns the 1-based index of the last (i.e., most significant) bit set in x.
  */
 inline uint64_t last_bit_set (uint64_t x) {
   assert (x > 0);

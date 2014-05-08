@@ -48,7 +48,7 @@ PMA pma_create (keyval_t *array, uint64_t n) {
       keyval_clear (&(pma->array [i]));
     }
   }
-  pma_spread (pma, 0, m, pma->n);
+  spread (pma, 0, m, pma->n);
   return (pma);
 }
 
@@ -109,7 +109,7 @@ bool pma_find (PMA pma, key_t key, uint64_t *index) {
 
 /* TODO: Should to and from be inclusive? */
 /* Returns how many elements were packed. */
-uint64_t pma_pack (PMA pma, uint64_t from, uint64_t to) {
+static uint64_t pack (PMA pma, uint64_t from, uint64_t to) {
   assert (from < to);
   uint64_t read_index = from;
   uint64_t write_index = from;
@@ -128,7 +128,7 @@ uint64_t pma_pack (PMA pma, uint64_t from, uint64_t to) {
 }
 
 /* TODO: Should to and from be inclusive? */
-void pma_spread (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
+static void spread (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
   assert (from < to);  // Assuming from is inclusive and to is exclusive.
   uint64_t capacity = to - from;  // Assuming from is inclusive and to is exclusive.
   uint64_t frequency = (capacity << 8) / n;  /* 8-bit fixed point arithmetic. */
@@ -144,33 +144,84 @@ void pma_spread (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
 }
 
 /* TODO: Should to and from be inclusive? */
-void pma_rebalance (PMA pma, uint64_t from, uint64_t to) {
-  pma_pack (pma, from, to);
-  pma_spread (pma, from, to);
+static void rebalance (PMA pma, uint64_t from, uint64_t to) {
+  pack (pma, from, to);
+  spread (pma, from, to);
 }
 
-void pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val) {
-  assert (!keyval_empty (&(pma->array [i])));
+static bool insert_in_segment_after (PMA pma, uint64_t i, key_t key, val_t val) {
+  uint64_t segment = i / pma->s;
+  uint64_t segment_start = segment * pma->s;
+  uint64_t segment_end = segment_start + pma->s;
   /* Find the closest empty space within the segment. */
+  /* We should be able to find one because we would have triggered a rebalance
+   * earlier otherwise. */
   uint64_t left = i - 1;
   uint64_t right = i + 1;
-  while (!keyval_empty (&(pma->array [left])) &&
-         !keyval_empty (&(pma->array [right]))) {
+  while ((left >= segment_start &&
+         !keyval_empty (&(pma->array [left]))) ||
+         (right < segment_end &&
+         !keyval_empty (&(pma->array [right])))) {
     left--;
     right++;
   }
+  /* shift elements by one to make space for the new element. */
+  if ((left >= segment_start &&
+       right < segment_end &&
+       i - left < right - i) ||
+      left >= segment_start) {
+    for (uint64_t j = left; j < i; j++) {
+      pma->array [j].key = pma->array [j + 1].key;
+      pma->array [j].val = pma->array [j + 1].val;
+    }
+    pma->array [i].key = key;
+    pma->array [i].val = val;
+  }
+  else if ((left >= segment_start &&
+            right < segment_end &&
+            i - left >= right - i) ||
+           right < segment_end)
+    for (uint64_t j = right; j > i + 1; j++) {
+      pma->array [j].key = pma->array [j - 1].key;
+      pma->array [j].val = pma->array [j - 1].val;
+    }
+    pma->array [i + 1].key = key;
+    pma->array [i + 1].val = val;
+  } else {  /* No space available in the segment. */
+    return (false);
+  }
+  return (true);
+}
+
+bool pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val) {
+  assert (!keyval_empty (&(pma->array [i])));
+  if (!insert_in_segment_after (pma, i, key, val)) {
+    return (false);
+  }
   /* Find the smallest window within threshold. */
+  uint64_t window_start = x;
+  uint64_t window_end = y;
+  num_elems = 0;
+  for (uint64_t i = x; i < y; i++) {
+    if (!keyval_empty (&(pma->array [i])))
+      num_elems++;
+  }
+  uint64_t capacity = window_end - window_start;
+  double density = (double)num_elems / (double)capacity;
   while (density < x) {
+    uint64_t new_window_start = x;
+    uint64_t new_window_end = y;
+    if ()
   }
   /* Rebalance */
-  pma_rebalance (pma, window_start, window_end);
+  rebalance (pma, window_start, window_end);
   pma->n++;
+  return (true);
 }
 
 void pma_insert (PMA pma, key_t key, val_t val) {
   uint64_t i;
-  /* Do not allow duplicates.*/
-  if (!pma_find (pma, key, &i))
+  if (!pma_find (pma, key, &i))  /* We do not allow duplicates.*/
     pma_insert_after (pma, i, key, val);
 }
 
