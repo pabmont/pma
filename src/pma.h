@@ -27,13 +27,13 @@
 /* Reserve 8 bits to allow for fixed point arithmetic. */
 #define MAX_SIZE ((1ULL << 56) - 1ULL)
 
-/* Depth-based (as opposed to height-based) thresholds. */
+/* Height-based (as opposed to depth-based) thresholds. */
 /* Upper density thresholds. */
-static const double t_0 = 0.75;  /* root. */
-static const double t_h = 1.00;  /* leaves. */
+static const double t_h = 0.75;  /* root. */
+static const double t_0 = 1.00;  /* leaves. */
 /* Lower density thresholds. */
-static const double p_0 = 0.50;  /* root. */
-static const double p_h = 0.25;  /* leaves. */
+static const double p_h = 0.50;  /* root. */
+static const double p_0 = 0.25;  /* leaves. */
 
 struct _pma;
 typedef struct _pma pma_t, *PMA;

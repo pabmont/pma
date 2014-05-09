@@ -95,11 +95,11 @@ bool pma_find (PMA pma, key_t key, uint64_t *index) {
   }
   /* from == to */
   if (keyval_empty (&(pma->array [from])) ||
-      pma->array [from].key > key) {
+      pma->array [from].key > key) {  /* Find predecessor. */
     *index = from - 1;
     while (*index >= 0 && keyval_empty (&(pma->array [*index])))
       (*index)--;
-  } else {
+  } else {  /* This is the element we are looking for or its predecessor. */
     *index = from;
     if (pma->array [from].key == key)
       return (true);
@@ -107,9 +107,8 @@ bool pma_find (PMA pma, key_t key, uint64_t *index) {
   return (false);
 }
 
-/* TODO: Should to and from be inclusive? */
-/* Returns how many elements were packed. */
-static uint64_t pack (PMA pma, uint64_t from, uint64_t to) {
+/* from is inclusive, to is exclusive. */
+static void pack (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
   assert (from < to);
   uint64_t read_index = from;
   uint64_t write_index = from;
@@ -124,17 +123,17 @@ static uint64_t pack (PMA pma, uint64_t from, uint64_t to) {
     }
     read_index++;
   }
-  return (write_index - 1);  /* TODO: Do I need to return this, or do I know it already? */
+  assert (n == write_index - 1);
 }
 
-/* TODO: Should to and from be inclusive? */
+/* from is inclusive, to is exclusive. */
 static void spread (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
-  assert (from < to);  // Assuming from is inclusive and to is exclusive.
-  uint64_t capacity = to - from;  // Assuming from is inclusive and to is exclusive.
+  assert (from < to);
+  uint64_t capacity = to - from;
   uint64_t frequency = (capacity << 8) / n;  /* 8-bit fixed point arithmetic. */
-  uint64_t read_index = from + n - 1;  // Assuming from is inclusive. */
-  uint64_t write_index = (to << 8) - frequency;  // Assuming to is exclusinve
-  while ((write_index >> 8) > read_index) {  // TODO: Do we have to check if w and r are >= 0? */
+  uint64_t read_index = from + n - 1;
+  uint64_t write_index = (to << 8) - frequency;
+  while ((write_index >> 8) > read_index) {
     pma->array [write_index >> 8].key = pma->array [read_index].key;
     pma->array [write_index >> 8].val = pma->array [read_index].val;
     keyval_clean (&(pma->array [read_index]));
@@ -143,13 +142,16 @@ static void spread (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
   }
 }
 
-/* TODO: Should to and from be inclusive? */
-static void rebalance (PMA pma, uint64_t from, uint64_t to) {
-  pack (pma, from, to);
-  spread (pma, from, to);
+/* from is inclusive, to is exclusive. */
+static void rebalance (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
+  pack (pma, from, to, n);
+  spread (pma, from, to, n);
 }
 
-static bool insert_in_segment_after (PMA pma, uint64_t i, key_t key, val_t val) {
+/* Returns false if there is no space available in the segment and true
+ * otherwise. */
+static bool insert_in_segment_after (PMA pma, uint64_t i,
+                                     key_t key, val_t val) {
   uint64_t segment = i / pma->s;
   uint64_t segment_start = segment * pma->s;
   uint64_t segment_end = segment_start + pma->s;
@@ -169,18 +171,17 @@ static bool insert_in_segment_after (PMA pma, uint64_t i, key_t key, val_t val) 
   if ((left >= segment_start &&
        right < segment_end &&
        i - left < right - i) ||
-      left >= segment_start) {
+      left >= segment_start) {  /* Push to the left. */
     for (uint64_t j = left; j < i; j++) {
       pma->array [j].key = pma->array [j + 1].key;
       pma->array [j].val = pma->array [j + 1].val;
     }
     pma->array [i].key = key;
     pma->array [i].val = val;
-  }
-  else if ((left >= segment_start &&
-            right < segment_end &&
-            i - left >= right - i) ||
-           right < segment_end)
+  } else if ((left >= segment_start &&
+              right < segment_end &&
+              i - left >= right - i) ||
+             right < segment_end) {  /* Push to the right. */
     for (uint64_t j = right; j > i + 1; j++) {
       pma->array [j].key = pma->array [j - 1].key;
       pma->array [j].val = pma->array [j - 1].val;
@@ -190,32 +191,51 @@ static bool insert_in_segment_after (PMA pma, uint64_t i, key_t key, val_t val) 
   } else {  /* No space available in the segment. */
     return (false);
   }
+  pma->n++;
   return (true);
 }
 
+void find_rebalance_window (PMA pma, uint64_t i, uint64_t *window_start,
+                            uint64_t *window_end, uint64_t *occupancy) {
+  uint8_t height = 0;
+  *occupancy = (keyval_empty (&(pma->array [i]))) ? 0 : 1;
+  uint64_t left_index = i - 1;
+  uint64_t right_index = i + 1;
+  double density, t_height;
+  do {
+    uint64_t window_size = pma->s * (1 << height);
+    uint64_t window = i / window_size;
+    *window_start = window * window_size;
+    *window_end = *window_start + window_size;
+    while (left_index >= *window_start) {
+      if (!keyval_empty (&(pma->array [left_index])))
+        (*occupancy)++;
+      left_index--:
+    }
+    while (right_index < *window_end) {
+      if (!keyval_empty (&(pma->array [right_index])))
+        (*occupancy)++;
+      right_index++:
+    }
+    density = (double)(*occupancy) / (double)window_size;
+    t_height = t_0 - (height * pma->delta_t);
+    p_height = p_0 + (height * pma->delta_p);
+    height++;
+  } while ((density < p_height || density >= t_height) &&
+           height < pma->h);
+  return (density >= p_height && density < t_height);
+}
+
+/* Returns true if the insertion was successful and false otherwise. */
 bool pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val) {
   assert (!keyval_empty (&(pma->array [i])));
-  if (!insert_in_segment_after (pma, i, key, val)) {
+  if (!insert_in_segment_after (pma, i, key, val))
     return (false);
-  }
-  /* Find the smallest window within threshold. */
-  uint64_t window_start = x;
-  uint64_t window_end = y;
-  num_elems = 0;
-  for (uint64_t i = x; i < y; i++) {
-    if (!keyval_empty (&(pma->array [i])))
-      num_elems++;
-  }
-  uint64_t capacity = window_end - window_start;
-  double density = (double)num_elems / (double)capacity;
-  while (density < x) {
-    uint64_t new_window_start = x;
-    uint64_t new_window_end = y;
-    if ()
-  }
-  /* Rebalance */
-  rebalance (pma, window_start, window_end);
-  pma->n++;
+  uint64_t occupancy, window_start, window_end;
+  if (find_rebalance_window (pma, i, &window_start, &window_end, &occupancy))
+    rebalance (pma, window_start, window_end, occupancy);
+  else
+    grow (pma);
   return (true);
 }
 
@@ -225,10 +245,28 @@ void pma_insert (PMA pma, key_t key, val_t val) {
     pma_insert_after (pma, i, key, val);
 }
 
-void pma_grow (PMA pma) {
+void pma_delete_at (PMA pma, uint64_t i) {
+  keyval_clean (&(pma->array [i]));
+  uint64_t occupancy, window_start, window_end;
+  if (find_rebalance_window (pma, i, &window_start, &window_end, &occupancy))
+    rebalance (pma, window_start, window_end, occupancy);
+  else
+    shrink (pma);
 }
 
-void pma_shrink (PMA pma) {
+bool pma_delete (PMA pma, key_t key) {
+  uint64_t i;
+  if (pma_find (pma, key, &i)) {
+    pma_delete_at (pma, i);
+    return (true);
+  }
+  return (false);  /* key does not exist. */
+}
+
+static void grow (PMA pma) {
+}
+
+static void shrink (PMA pma) {
 }
 
 void pma_get (PMA pma, uint64_t i, keyval_t *keyval) {
