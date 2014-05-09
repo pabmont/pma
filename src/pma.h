@@ -20,9 +20,10 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
-#include "util.h"
 #include "keyval.h"
+#include "util.h"
 
 /* Reserve 8 bits to allow for fixed point arithmetic. */
 #define MAX_SIZE ((1ULL << 56) - 1ULL)
