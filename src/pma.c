@@ -195,8 +195,8 @@ static bool insert_in_segment_after (PMA pma, uint64_t i,
   return (true);
 }
 
-void find_rebalance_window (PMA pma, uint64_t i, uint64_t *window_start,
-                            uint64_t *window_end, uint64_t *occupancy) {
+static void find_rebalance_window (PMA pma, uint64_t i, uint64_t *window_start,
+                                   uint64_t *window_end, uint64_t *occupancy) {
   uint8_t height = 0;
   *occupancy = (keyval_empty (&(pma->array [i]))) ? 0 : 1;
   uint64_t left_index = i - 1;
@@ -242,7 +242,8 @@ bool pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val) {
 void pma_insert (PMA pma, key_t key, val_t val) {
   uint64_t i;
   if (!pma_find (pma, key, &i))  /* We do not allow duplicates.*/
-    pma_insert_after (pma, i, key, val);
+    return (pma_insert_after (pma, i, key, val));
+  return (false);
 }
 
 void pma_delete_at (PMA pma, uint64_t i) {
