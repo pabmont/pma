@@ -27,12 +27,17 @@ struct _pma {
   keyval_t *array;
 };
 
+/* TODO: For testing purposes only. */
+uint8_t pma_segment_size (PMA pma) {
+  return (pma->s);
+}
+
 static void pack (PMA pma, uint64_t from, uint64_t to, uint64_t n);
 static void spread (PMA pma, uint64_t from, uint64_t to, uint64_t n);
-static void rebalance (PMA pma, uint64_t from, uint64_t to, uint64_t n);
-static bool insert_in_segment_after (PMA pma, uint64_t i, key_t key, val_t val);
-static bool find_rebalance_window (PMA pma, uint64_t i, uint64_t *window_start,
-                                   uint64_t *window_end, uint64_t *occupancy);
+static void rebalance (PMA pma, int64_t from, int64_t to, uint64_t n);
+static bool insert_in_segment_after (PMA pma, int64_t *i, key_t key, val_t val);
+static bool find_rebalance_window (PMA pma, int64_t i, int64_t *window_start,
+                                   int64_t *window_end, uint64_t *occupancy);
 static void grow (PMA pma);
 static void shrink (PMA pma);
 
@@ -47,8 +52,8 @@ PMA pma_create (keyval_t *array, uint64_t n) {
   assert (pma->m <= MAX_SIZE);
   assert (pma->m > pma->n);
   pma->h = floor_lg (pma->num_segments) + 1;
-  pma->delta_t = (t_h - t_0) / pma->h;
-  pma->delta_p = (p_0 - p_h) / pma->h;
+  pma->delta_t = (t_0 - t_h) / pma->h;
+  pma->delta_p = (p_h - p_0) / pma->h;
   pma->array = (keyval_t *)malloc (sizeof (keyval_t) * pma->m);
   for (uint64_t i = 0; i < pma->m; i++) {
     if (i < pma->n) {
@@ -78,7 +83,7 @@ void pma_destroy (PMA *pma) {
  * If the element is not found, index holds the position of the predecessor or
  * -1 if no predecessor exist in the array.
  */
-bool pma_find (PMA pma, key_t key, uint64_t *index) {
+bool pma_find (PMA pma, key_t key, int64_t *index) {
   uint64_t from = 0;
   uint64_t to = pma->m - 1;
   while (from < to) {
@@ -133,7 +138,7 @@ static void pack (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
     }
     read_index++;
   }
-  assert (n == write_index - 1);
+  assert (n == write_index - from);
 }
 
 /* from is inclusive, to is exclusive. */
@@ -153,64 +158,63 @@ static void spread (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
 }
 
 /* from is inclusive, to is exclusive. */
-static void rebalance (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
+static void rebalance (PMA pma, int64_t from, int64_t to, uint64_t n) {
   pack (pma, from, to, n);
   spread (pma, from, to, n);
 }
 
 /* Returns false if there is no space available in the segment and true
  * otherwise. */
-static bool insert_in_segment_after (PMA pma, uint64_t i,
+ /* If an empty space is found, i is updated to point to the position where the
+  * new element was inserted. */
+static bool insert_in_segment_after (PMA pma, int64_t *i,
                                      key_t key, val_t val) {
-  uint64_t segment = i / pma->s;
+  uint64_t segment = (*i == -1LL) ? 0LL : *i / pma->s;
   uint64_t segment_start = segment * pma->s;
   uint64_t segment_end = segment_start + pma->s;
-  /* Find the closest empty space within the segment. */
-  /* We should be able to find one because we would have triggered a rebalance
-   * earlier otherwise. */
-  uint64_t left = i - 1;
-  uint64_t right = i + 1;
-  while ((left >= segment_start &&
-         !keyval_empty (&(pma->array [left]))) ||
-         (right < segment_end &&
-         !keyval_empty (&(pma->array [right])))) {
-    left--;
-    right++;
-  }
-  /* shift elements by one to make space for the new element. */
-  if ((left >= segment_start &&
-       right < segment_end &&
-       i - left < right - i) ||
-      left >= segment_start) {  /* Push to the left. */
-    for (uint64_t j = left; j < i; j++) {
-      pma->array [j].key = pma->array [j + 1].key;
-      pma->array [j].val = pma->array [j + 1].val;
-    }
-    pma->array [i].key = key;
-    pma->array [i].val = val;
-  } else if ((left >= segment_start &&
-              right < segment_end &&
-              i - left >= right - i) ||
-             right < segment_end) {  /* Push to the right. */
-    for (uint64_t j = right; j > i + 1; j++) {
+  /* Find an empty space within the segment. We should be able to find one
+   * because we would have triggered a rebalance earlier otherwise. */
+  int64_t j = *i + 1;
+  while (j < segment_end &&
+         !keyval_empty (&(pma->array [j])))
+    j++;
+  if (j < segment_end) {  /* Found one. */
+    while (j > *i + 1) {  /* Push elements to make space for the new element. */
       pma->array [j].key = pma->array [j - 1].key;
       pma->array [j].val = pma->array [j - 1].val;
+      j--;
     }
-    pma->array [i + 1].key = key;
-    pma->array [i + 1].val = val;
-  } else {  /* No space available in the segment. */
-    return (false);
+    pma->array [*i + 1].key = key;
+    pma->array [*i + 1].val = val;
+    *i = *i + 1;  /* Update i. */
+  } else {  /* No empty space to the right of i. Try left. */
+    j = *i - 1;
+    while (j >= segment_start &&
+           !keyval_empty (&(pma->array [j])))
+      j--;
+    if (j >= segment_start) {  /* Found one. */
+      while (j < *i) {  /* Push elements to make space for the new element. */
+        pma->array [j].key = pma->array [j + 1].key;
+        pma->array [j].val = pma->array [j + 1].val;
+        j++;
+      }
+      pma->array [*i].key = key;
+      pma->array [*i].val = val;
+    } else {  /* No space available in the segment. */
+      /* TODO: This is not an error. This can actually happen. What then? */
+      return (false);
+    }
   }
   pma->n++;
   return (true);
 }
 
-static bool find_rebalance_window (PMA pma, uint64_t i, uint64_t *window_start,
-                                   uint64_t *window_end, uint64_t *occupancy) {
+static bool find_rebalance_window (PMA pma, int64_t i, int64_t *window_start,
+                                   int64_t *window_end, uint64_t *occupancy) {
   uint8_t height = 0;
   *occupancy = (keyval_empty (&(pma->array [i]))) ? 0 : 1;
-  uint64_t left_index = i - 1;
-  uint64_t right_index = i + 1;
+  int64_t left_index = i - 1;
+  int64_t right_index = i + 1;
   double density, t_height, p_height;
   do {
     uint64_t window_size = pma->s * (1 << height);
@@ -231,17 +235,19 @@ static bool find_rebalance_window (PMA pma, uint64_t i, uint64_t *window_start,
     t_height = t_0 - (height * pma->delta_t);
     p_height = p_0 + (height * pma->delta_p);
     height++;
-  } while ((density < p_height || density >= t_height) &&
+  } while ((density < p_height ||
+            density >= t_height) &&
            height < pma->h);
   return (density >= p_height && density < t_height);
 }
 
 /* Returns true if the insertion was successful and false otherwise. */
-bool pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val) {
+bool pma_insert_after (PMA pma, int64_t i, key_t key, val_t val) {
   assert (!keyval_empty (&(pma->array [i])));
-  if (!insert_in_segment_after (pma, i, key, val))
+  if (!insert_in_segment_after (pma, &i, key, val))
     return (false);
-  uint64_t occupancy, window_start, window_end;
+  uint64_t occupancy;
+  int64_t window_start, window_end;
   if (find_rebalance_window (pma, i, &window_start, &window_end, &occupancy))
     rebalance (pma, window_start, window_end, occupancy);
   else
@@ -250,7 +256,7 @@ bool pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val) {
 }
 
 bool pma_insert (PMA pma, key_t key, val_t val) {
-  uint64_t i;
+  int64_t i;
   if (!pma_find (pma, key, &i))  /* We do not allow duplicates.*/
     return (pma_insert_after (pma, i, key, val));
   return (false);
@@ -258,7 +264,8 @@ bool pma_insert (PMA pma, key_t key, val_t val) {
 
 void pma_delete_at (PMA pma, uint64_t i) {
   keyval_clear (&(pma->array [i]));
-  uint64_t occupancy, window_start, window_end;
+  uint64_t occupancy;
+  int64_t window_start, window_end;
   if (find_rebalance_window (pma, i, &window_start, &window_end, &occupancy))
     rebalance (pma, window_start, window_end, occupancy);
   else
@@ -266,7 +273,7 @@ void pma_delete_at (PMA pma, uint64_t i) {
 }
 
 bool pma_delete (PMA pma, key_t key) {
-  uint64_t i;
+  int64_t i;
   if (pma_find (pma, key, &i)) {
     pma_delete_at (pma, i);
     return (true);

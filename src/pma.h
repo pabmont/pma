@@ -17,6 +17,8 @@
 #ifndef __PMA_H_
 #define __PMA_H_
 
+#include <stdio.h>
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -41,13 +43,16 @@ typedef struct _pma pma_t, *PMA;
 
 PMA pma_create (keyval_t *array, uint64_t n);
 void pma_destroy (PMA *pma);
-bool pma_find (PMA pma, key_t key, uint64_t *index);
-bool pma_insert_after (PMA pma, uint64_t i, key_t key, val_t val);
+bool pma_find (PMA pma, key_t key, int64_t *index);
+bool pma_insert_after (PMA pma, int64_t i, key_t key, val_t val);
 bool pma_insert (PMA pma, key_t key, val_t val);
 void pma_delete_at (PMA pma, uint64_t i);
 bool pma_delete (PMA pma, key_t key);
 void pma_get (PMA pma, uint64_t i, keyval_t *keyval);
 uint64_t pma_capacity (PMA p);
 uint64_t pma_count (PMA p);
+
+/* TODO: For testing purposes only. */
+uint8_t pma_segment_size (PMA pma);
 
 #endif  /* __PMA_H_ */
