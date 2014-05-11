@@ -107,21 +107,10 @@ bool pma_find (PMA pma, key_t key, int64_t *index) {
       }
     }
   }
-  /* Didn't find key. to should hold its predecessor (unless it's empty). */
+  /* Didn't find `key'. `to' should hold its predecessor (unless it's empty). */
   *index = to;
   while (*index >= 0 && keyval_empty (&(pma->array [*index])))
     (*index)--;
-  // /* from == to */
-  // if (keyval_empty (&(pma->array [from])) ||
-  //     pma->array [from].key > key) {  /* Find predecessor. */
-  //   *index = from - 1;
-  //   while (*index >= 0 && keyval_empty (&(pma->array [*index])))
-  //     (*index)--;
-  // } else {  /* This is the element we are looking for or its predecessor. */
-  //   *index = from;
-  //   if (pma->array [from].key == key)
-  //     return (true);
-  // }
   return (false);
 }
 
