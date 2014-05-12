@@ -40,31 +40,44 @@ static bool find_rebalance_window (PMA pma, int64_t i, int64_t *window_start,
 static void grow (PMA pma);
 static void shrink (PMA pma);
 
-PMA pma_create (keyval_t *array, uint64_t n) {
-  assert (n > 0);
+PMA pma_create () {
   PMA pma = (PMA)malloc (sizeof (pma_t));
-  pma->n = n;
-  pma->m = hyperceil (2 * n);
-  pma->s = floor_lg (pma->m);  // Or 2 * floor_lg (pma->m) for level-based.
-  pma->num_segments = hyperfloor (pma->m / pma->s);
-  pma->m = pma->num_segments * pma->s;
-  assert (pma->m <= MAX_SIZE);
-  assert (pma->m > pma->n);
-  pma->h = floor_lg (pma->num_segments) + 1;
+  pma->n = 0;
+  pma->m = 16;
+  pma->s = 4;
+  pma->num_segments = 4;
+  pma->h = 3;
   pma->delta_t = (t_0 - t_h) / pma->h;
   pma->delta_p = (p_h - p_0) / pma->h;
   pma->array = (keyval_t *)malloc (sizeof (keyval_t) * pma->m);
-  for (uint64_t i = 0; i < pma->m; i++) {
-    if (i < pma->n) {
-      pma->array [i].key = array [i].key;
-      pma->array [i].val = array [i].val;
-    } else {
-      keyval_clear (&(pma->array [i]));
-    }
-  }
-  spread (pma, 0, pma->m, pma->n);
   return (pma);
 }
+
+// PMA pma_create (keyval_t *array, uint64_t n) {
+//   assert (n > 0);
+//   PMA pma = (PMA)malloc (sizeof (pma_t));
+//   pma->n = n;
+//   pma->m = hyperceil (2 * n);
+//   pma->s = floor_lg (pma->m);  // Or 2 * floor_lg (pma->m) for level-based.
+//   pma->num_segments = hyperfloor (pma->m / pma->s);
+//   pma->m = pma->num_segments * pma->s;
+//   assert (pma->m <= MAX_SIZE);
+//   assert (pma->m > pma->n);
+//   pma->h = floor_lg (pma->num_segments) + 1;
+//   pma->delta_t = (t_0 - t_h) / pma->h;
+//   pma->delta_p = (p_h - p_0) / pma->h;
+//   pma->array = (keyval_t *)malloc (sizeof (keyval_t) * pma->m);
+//   for (uint64_t i = 0; i < pma->m; i++) {
+//     if (i < pma->n) {
+//       pma->array [i].key = array [i].key;
+//       pma->array [i].val = array [i].val;
+//     } else {
+//       keyval_clear (&(pma->array [i]));
+//     }
+//   }
+//   spread (pma, 0, pma->m, pma->n);
+//   return (pma);
+// }
 
 void pma_destroy (PMA *pma) {
   free ((*pma)->array);
@@ -83,12 +96,12 @@ void pma_destroy (PMA *pma) {
  * -1 if no predecessor exist in the array.
  */
 bool pma_find (PMA pma, key_t key, int64_t *index) {
-  uint64_t from = 0;
-  uint64_t to = pma->m - 1;
+  int64_t from = 0;
+  int64_t to = pma->m - 1;
   while (from <= to) {
-    uint64_t mid = from + (to - from) / 2;
-    uint64_t i = mid;
-    /* Start scanning left until we find a non-empty spot or we reach past the
+    int64_t mid = from + (to - from) / 2;
+    int64_t i = mid;
+    /* Start scanning left until we find a non-empty slot or we reach past the
      * beginning of the subarray. */
     while (i >= from &&
            keyval_empty (&(pma->array [i])))
@@ -155,6 +168,7 @@ static void rebalance (PMA pma, int64_t from, int64_t to, uint64_t n) {
   spread (pma, from, to, n);
 }
 
+/* Returns true if we could find a window within threshold. */
 static bool find_rebalance_window (PMA pma, int64_t i, int64_t *window_start,
                                    int64_t *window_end, uint64_t *occupancy) {
   uint8_t height = 0;
@@ -254,9 +268,11 @@ bool pma_delete (PMA pma, key_t key) {
 }
 
 static void grow (PMA pma) {
+  printf ("grow not yet implemented\n");
 }
 
 static void shrink (PMA pma) {
+  printf ("shrink not yet implemented\n");
 }
 
 void pma_get (PMA pma, uint64_t i, keyval_t *keyval) {
