@@ -41,15 +41,15 @@ static const double p_0 = 0.25;  /* leaves. */
 struct _pma;
 typedef struct _pma pma_t, *PMA;
 
-// PMA pma_create (keyval_t *array, uint64_t n);
 PMA pma_create (void);
+PMA pma_from_array (keyval_t *array, uint64_t n);
 void pma_destroy (PMA *pma);
 bool pma_find (PMA pma, key_t key, int64_t *index);
-bool pma_insert_after (PMA pma, int64_t i, key_t key, val_t val);
 bool pma_insert (PMA pma, key_t key, val_t val);
-void pma_delete_at (PMA pma, uint64_t i);
+void pma_insert_after (PMA pma, int64_t i, key_t key, val_t val);
 bool pma_delete (PMA pma, key_t key);
-void pma_get (PMA pma, uint64_t i, keyval_t *keyval);
+void pma_delete_at (PMA pma, int64_t i);
+void pma_get (PMA pma, int64_t i, keyval_t *keyval);
 uint64_t pma_capacity (PMA p);
 uint64_t pma_count (PMA p);
 
