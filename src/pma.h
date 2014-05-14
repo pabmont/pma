@@ -29,8 +29,6 @@
 
 /* Reserve 8 bits to allow for fixed point arithmetic. */
 #define MAX_SIZE ((1ULL << 56) - 1ULL)
-/* largest empty segment = 1 / p_0 */
-#define LARGEST_EMPTY_SEGMENT 4
 
 /* Height-based (as opposed to depth-based) thresholds. */
 /* Upper density thresholds. */
@@ -39,6 +37,9 @@ static const double t_0 = 1.00;  /* leaves. */
 /* Lower density thresholds. */
 static const double p_h = 0.50;  /* root. */
 static const double p_0 = 0.25;  /* leaves. */
+
+static const uint8_t max_sparseness = 1 / p_0;
+static const uint8_t largest_empty_segment = 1 * max_sparseness;
 
 struct _pma;
 typedef struct _pma pma_t, *PMA;

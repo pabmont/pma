@@ -18,7 +18,7 @@
 
 struct _pma {
   uint64_t n;  /* Number of elements. */
-  uint64_t m;  /* Size of the array. */
+  uint64_t m;  /* Size of the array (capacity). */
   uint8_t s;  /* Size of the segments. */
   uint64_t num_segments;
   uint8_t h;  /* Height of the tree. */
@@ -36,12 +36,13 @@ static void rebalance (PMA pma, int64_t i);
 static void pack (PMA pma, uint64_t from, uint64_t to, uint64_t n);
 static void spread (PMA pma, uint64_t from, uint64_t to, uint64_t n);
 static void resize (PMA pma);
+static void compute_capacity (PMA pma);
 
 PMA pma_create () {
   PMA pma = (PMA)malloc (sizeof (pma_t));
   pma->n = 0;
-  pma->s = LARGEST_EMPTY_SEGMENT;
-  pma->m = (1ULL << LARGEST_EMPTY_SEGMENT);
+  pma->s = largest_empty_segment;
+  pma->m = (1ULL << largest_empty_segment);
   pma->num_segments = pma->m / pma->s;
   pma->h = floor_lg (pma->num_segments) + 1;
   pma->delta_t = (t_0 - t_h) / pma->h;
@@ -54,12 +55,7 @@ PMA pma_from_array (keyval_t *array, uint64_t n) {
   assert (n > 0);
   PMA pma = (PMA)malloc (sizeof (pma_t));
   pma->n = n;
-  pma->m = hyperceil (2 * n);
-  pma->s = floor_lg (pma->m);  // Or 2 * floor_lg (pma->m) for level-based.
-  pma->num_segments = hyperfloor (pma->m / pma->s);
-  pma->m = pma->num_segments * pma->s;
-  assert (pma->m <= MAX_SIZE);
-  assert (pma->m > pma->n);
+  compute_capacity (pma);
   pma->h = floor_lg (pma->num_segments) + 1;
   pma->delta_t = (t_0 - t_h) / pma->h;
   pma->delta_p = (p_h - p_0) / pma->h;
@@ -275,12 +271,7 @@ static void spread (PMA pma, uint64_t from, uint64_t to, uint64_t n) {
 
 static void resize (PMA pma) {
   pack (pma, 0, pma->m, pma->n);
-  pma->m = hyperceil (2 * pma->n);
-  pma->s = floor_lg (pma->m);
-  pma->num_segments = hyperfloor (pma->m / pma->s);
-  pma->m = pma->num_segments * pma->s;
-  assert (pma->m <= MAX_SIZE);
-  assert (pma->m > pma->n);
+  compute_capacity (pma);
   pma->h = floor_lg (pma->num_segments) + 1;
   pma->delta_t = (t_0 - t_h) / pma->h;
   pma->delta_p = (p_h - p_0) / pma->h;
@@ -288,4 +279,19 @@ static void resize (PMA pma) {
   for (uint64_t i = pma->n; i < pma->m; i++)
     keyval_clear (&(pma->array [i]));
   spread (pma, 0, pma->m, pma->n);
+}
+
+static void compute_capacity (PMA pma) {
+  pma->s = ceil_lg (pma->n);  /* Ideal segment size. */
+  pma->num_segments = ceil_div (pma->n, pma->s);  /* Ideal number of segments. */
+  /* The number of segments has to be a power of 2. */
+  pma->num_segments = hyperceil (pma->num_segments);
+  /* Update the segment size accordingly. */
+  pma->s = ceil_div (pma->n, pma->num_segments);
+  pma->m = pma->s * pma->num_segments;
+  /* Scale up as much as possible. */
+  pma->m = max_sparseness * pma->m;
+  pma->s = max_sparseness * pma->s;
+  assert (pma->m <= MAX_SIZE);
+  assert (pma->m > pma->n);
 }

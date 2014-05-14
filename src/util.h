@@ -51,4 +51,9 @@ inline uint64_t hyperceil (uint64_t x) {
   return (1 << ceil_lg (x));
 }
 
+inline uint64_t ceil_div (uint64_t x, uint64_t y) {
+  assert (x > 0);
+  return (1 + ((x - 1) / y));
+}
+
 #endif  /* __UTIL_H_ */
