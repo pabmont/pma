@@ -29,6 +29,8 @@
 
 /* Reserve 8 bits to allow for fixed point arithmetic. */
 #define MAX_SIZE ((1ULL << 56) - 1ULL)
+/* largest empty segment = 1 / p_0 */
+#define LARGEST_EMPTY_SEGMENT 4
 
 /* Height-based (as opposed to depth-based) thresholds. */
 /* Upper density thresholds. */

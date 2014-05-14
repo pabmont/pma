@@ -51,21 +51,4 @@ inline uint64_t hyperceil (uint64_t x) {
   return (1 << ceil_lg (x));
 }
 
-inline bool is_power_of_2 (uint64_t x) {
-  return (x && !(x & (x - 1)));
-}
-
-/* Returns the smallest power of 2 strictly greater than x. */
-inline uint64_t next_power_of_2 (uint64_t x) {
-  return (1 << last_bit_set (x));
-}
-
-inline int min(int a, int b) {
-  return ((a < b) ? a : b);
-}
-
-inline int max(int a, int b) {
-  return ((a > b) ? a : b);
-}
-
 #endif  /* __UTIL_H_ */

@@ -40,12 +40,10 @@ static void resize (PMA pma);
 PMA pma_create () {
   PMA pma = (PMA)malloc (sizeof (pma_t));
   pma->n = 0;
-  /* This is the largest an empty PMA can be, based on current the lower density
-   * thresholds. */
-  pma->m = 16;
-  pma->s = 4;
-  pma->num_segments = 4;
-  pma->h = 3;
+  pma->s = LARGEST_EMPTY_SEGMENT;
+  pma->m = (1ULL << LARGEST_EMPTY_SEGMENT);
+  pma->num_segments = pma->m / pma->s;
+  pma->h = floor_lg (pma->num_segments) + 1;
   pma->delta_t = (t_0 - t_h) / pma->h;
   pma->delta_p = (p_h - p_0) / pma->h;
   pma->array = (keyval_t *)malloc (sizeof (keyval_t) * pma->m);
